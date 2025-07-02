@@ -1,0 +1,6 @@
+/movie_data_env
+/venv
+data.json
+movies.db
+movies3.db
+movies_filtered.db

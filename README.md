@@ -17,7 +17,7 @@ Both scripts
 
 * flatten nested structures into child tables (`movie_genres`, `movie_videos`, …) instead of storing JSON blobs,
 * convert meaningless values (`0`, `""`, `[]`, `{}`) to SQL `NULL`, while Boolean
-  fields become the strings **“yes”** / **“no”**,
+  fields become the integers **“1”** for `true` / **“0”** for `false`,
 * stream the input file in batches of 1000 lines (constant memory),
 * apply WAL mode + PRAGMA tweaks for fast bulk inserts,
 * print live progress (rows stored / rows skipped / rows-per-second).

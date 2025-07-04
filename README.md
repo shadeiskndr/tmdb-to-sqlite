@@ -7,12 +7,17 @@ Dataset is taken from [Full TMDB Movies Dataset (1M+)](https://www.kaggle.com/da
 * `json_to_sqlite.py`                 – loads **all** movies  
 * `json_to_sqlite_filtered.py`        – loads only movies that  
   1. are **not** flagged as adult (`"adult": true`), **and**  
-  2. provide a non-empty `poster_path`
+  2. provide a non-empty `poster_path`, **and**  
+  3. provide a non-empty `overview`  
+
+  (Because every retained record is guaranteed to be non-adult, the column  
+  `adult` is **omitted** from the resulting SQLite schema.)
 
 Both scripts
 
 * flatten nested structures into child tables (`movie_genres`, `movie_videos`, …) instead of storing JSON blobs,
-* convert meaningless values (`0`, `""`, `[]`, `{}`) to SQL `NULL`,
+* convert meaningless values (`0`, `""`, `[]`, `{}`) to SQL `NULL`, while Boolean
+  fields become the strings **“yes”** / **“no”**,
 * stream the input file in batches of 1000 lines (constant memory),
 * apply WAL mode + PRAGMA tweaks for fast bulk inserts,
 * print live progress (rows stored / rows skipped / rows-per-second).
@@ -25,7 +30,7 @@ Both scripts
 # full load
 python json_to_sqlite.py           movies.jsonl   # → movies.db
 
-# filtered load (no adult, must have poster)
+# filtered load (no adult, must have poster & overview)
 python json_to_sqlite_filtered.py  movies.jsonl   # → movies.db
 ```
 
@@ -50,12 +55,14 @@ movies  movie_genres  movie_spoken_languages  movie_origin_countries …
 Main table (`movies`) – scalar fields only:
 
 ```
-id  | adult | title | … | vote_average | poster_path | …
-collection_* columns
-external_*   columns
+id  | title | … | vote_average | poster_path | …
 ```
 
-Child tables (all have a `movie_id` FK‐column):
+`adult` is present **only** when you use `json_to_sqlite.py` (the full loader).  
+The filtered loader leaves that column out because every retained record is
+guaranteed to be family-friendly.
+
+Child tables (all have a `movie_id` FK-column):
 
 | Table                         | Sample columns (⇢ query examples below)          |
 |-------------------------------|--------------------------------------------------|
@@ -98,11 +105,16 @@ LIMIT  15;
 1. **Filtering logic** (only in `json_to_sqlite_filtered.py`)  
    ```python
    def _should_skip(movie):
-       return movie.get("adult") or not movie.get("poster_path")
+       return (
+           movie.get("adult")                  # skip adult
+           or not movie.get("poster_path")     # needs poster
+           or not movie.get("overview")        # needs overview
+       )
    ```
-2. **Normalisation** – `_split_record()` extracts scalar columns and child-row tuples in one pass, keeping memory usage minimal.
-3. **Batch flushing** – every 1000 records all pending rows for **all** tables are written inside a single transaction for referential integrity and speed.
-4. **Value sanitising** – helper `_norm()` converts `0`, `""`, `[]`, `{}` to `None` so your analytics aren’t polluted by sentinel values.
+2. **Normalisation** – `_split_record()` extracts scalar columns and child-row tuples in one pass, keeping memory usage minimal.  
+3. **Batch flushing** – every 1000 records all pending rows for **all** tables are written inside a single transaction for referential integrity and speed.  
+4. **Value sanitising** – helper `_norm()` converts `0`, `""`, `[]`, `{}` to `None`
+   and maps booleans to the strings `"yes"` / `"no"` for convenient querying.
 
 ---
 
@@ -118,16 +130,16 @@ The scripts are tested on Fedora 42 but should work identically on any OS with S
 ## 6. FAQ
 
 **Q : My input is a single gigantic JSON array, not JSONL.**  
-A: Use a tool like `jq` to convert it:  
+A : Use a tool like `jq` to convert it:  
 ```bash
 jq -c '.[]' movies.json > movies.jsonl
 ```
 
 **Q : Can I change the batch size?**  
-A: Open the script and adjust `self.batch_size = 1000` near the top.
+A : Open the script and adjust `self.batch_size = 1000` near the top.
 
 **Q : I need more filters (e.g. minimum votes).**  
-A: Edit `_should_skip()` in `json_to_sqlite_filtered.py` and extend the conditions.
+A : Edit `_should_skip()` in `json_to_sqlite_filtered.py` and extend the conditions (the file already contains several recommended rules commented-out).
 
 ---
 

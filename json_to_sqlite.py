@@ -19,8 +19,17 @@ from typing import Any, Dict, List, Tuple
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
 def _norm(v: Any) -> Any:
-    """Convert 0, '', [], {} -> None (except keep movie id 0 just in case)."""
-    if v in ('', [], {}, None):
+    """
+    Prepare a raw JSON value for SQLite.
+
+    • Booleans        → "yes" / "no"
+    • 0, '', [], {}   → NULL          (None in Python)
+    """
+    # handle booleans first (bool is a subclass of int!)
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+
+    if v in ("", [], {}, None):
         return None
     if isinstance(v, (int, float)) and v == 0:
         return None

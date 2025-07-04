@@ -22,12 +22,12 @@ def _norm(v: Any) -> Any:
     """
     Prepare a raw JSON value for SQLite.
 
-    • Booleans        → "yes" / "no"
+    • Booleans        → 0 / 1
     • 0, '', [], {}   → NULL          (None in Python)
     """
     # handle booleans first (bool is a subclass of int!)
     if isinstance(v, bool):
-        return "yes" if v else "no"
+        return 1 if v else 0
 
     if v in ("", [], {}, None):
         return None

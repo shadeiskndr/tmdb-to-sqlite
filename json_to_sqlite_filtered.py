@@ -21,8 +21,17 @@ from typing import Any, Dict, List, Tuple
 # Helper ─ value normalisation
 # ──────────────────────────────────────────────────────────────────────
 def _norm(v: Any) -> Any:
-    """Convert 0, '', [], {} -> None (except id=0)."""
-    if v in ('', [], {}, None):
+    """
+    Prepare a raw JSON value for SQLite.
+
+    • Booleans        → "yes" / "no"
+    • 0, '', [], {}   → NULL          (None in Python)
+    """
+    # handle booleans first (bool is a subclass of int!)
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+
+    if v in ("", [], {}, None):
         return None
     if isinstance(v, (int, float)) and v == 0:
         return None
@@ -42,7 +51,6 @@ class JSONToSQLiteFiltered:
         # Scalar columns for main table
         self.scalar_schema = {
             'id': 'INTEGER PRIMARY KEY',
-            'adult': 'BOOLEAN',
             'title': 'TEXT',
             'original_title': 'TEXT',
             'video': 'BOOLEAN',
@@ -232,6 +240,24 @@ class JSONToSQLiteFiltered:
         poster = movie.get("poster_path")
         if poster in (None, ''):
             return True
+        overview = movie.get('overview')
+        if overview in (None, ''):
+            return True
+        # if movie.get("video"):
+        #     return True
+        # if movie.get("vote_count", 0) < 50:
+        #     return True
+        # if movie.get("original_language") != "en":
+        #     return True
+        # if (rd := movie.get("release_date")):
+        #     year = int(rd[:4])
+        #     if year < 1960:
+        #         return True
+        # else:
+        #     return True
+        # runtime = movie.get("runtime") or 0
+        # if runtime < 40:
+        #     return True
         return False
 
     # ──────────────────────────────────────────────────────────────
